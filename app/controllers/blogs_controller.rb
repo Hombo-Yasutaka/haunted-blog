@@ -3,7 +3,9 @@
 class BlogsController < ApplicationController
   skip_before_action :authenticate_user!, only: %i[index show]
 
-  before_action :set_blog, only: %i[show edit update destroy]
+  before_action :set_blog, only: %i[show]
+
+  before_action :set_owned_blog, only: %i[edit update destroy]
 
   def index
     @blogs = Blog.search(params[:term]).published.default_order
@@ -44,10 +46,18 @@ class BlogsController < ApplicationController
   private
 
   def set_blog
-    @blog = Blog.find(params[:id])
+    published_ids = Blog.published.pluck(:id)
+    published_ids += current_user.blogs.pluck(:id) if user_signed_in?
+    @blog = Blog.where(id: published_ids).find(params[:id])
+  end
+
+  def set_owned_blog
+    @blog = current_user.blogs.find(params[:id])
   end
 
   def blog_params
-    params.require(:blog).permit(:title, :content, :secret, :random_eyecatch)
+    permitted_params = %i[title content secret]
+    permitted_params << :random_eyecatch if current_user.premium
+    params.require(:blog).permit(permitted_params)
   end
 end
